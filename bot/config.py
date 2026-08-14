@@ -29,15 +29,16 @@ class Settings(BaseSettings):
     support_group_id: int
     support_topic_id: int | None = None
 
-    start_photo_url: str = "/root/Bot/img/start.jpg"
-    agreement_photo_url: str = "/root/Bot/img/rules.jpg"
-    questionnaire_nickname_photo_url: str = "/root/Bot/img/name.jpg"
-    questionnaire_about_photo_url: str = "/root/Bot/img/about.jpg"
-    questionnaire_hobbies_photo_url: str = "/root/Bot/img/hobbies.jpg"
-    stats_photo_url: str = "/root/Bot/img/stats.jpg"
-    dialogs_photo_url: str = "/root/Bot/img/history.jpg"
-    online_photo_url: str = "/root/Bot/img/online.jpg"
-    reviews_photo_url: str = "/root/Bot/img/reviews.jpg"
+    channel_url: str = ""
+    anketa_bot_url: str = ""
+    reviews_webapp_url: str = ""
+    online_webapp_url: str = ""
+    profile_webapp_url: str = ""
+    dialogs_webapp_url: str = ""
+    ttt_webapp_url: str = ""
+    norms_webapp_url: str = ""
+    battleship_webapp_url: str = ""
+    gamestats_webapp_url: str = ""
 
     openrouter_api_key: str = ""
     openrouter_model: str = "qwen/qwen-2.5-72b-instruct"
@@ -79,4 +80,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore[call-arg]
-
