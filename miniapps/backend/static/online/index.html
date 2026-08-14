@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Спокойный рассвет — Онлайн</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+</head>
+<body>
+  <h1>Администрация онлайн</h1>
+  <div class="subtitle">Обновляется каждые 30 секунд</div>
+  <div class="list" id="list"></div>
+  <div class="empty" id="empty" style="display:none;">Пока никого нет на связи</div>
+  <div class="loader" id="loader">Загружаем...</div>
+
+<script src="/shared/api.js"></script>
+<script>
+  const ROLE_LABELS = { owner: "Владелец", head_admin: "Хед-админ", admin: "Администратор" };
+
+  async function load() {
+    try {
+      // онлайн-список публичный (не требует auth), но initData всё равно шлём для единообразия
+      const res = await apiFetch("/api/online");
+      const admins = await res.json();
+      document.getElementById("loader").style.display = "none";
+      const list = document.getElementById("list");
+      const empty = document.getElementById("empty");
+      list.innerHTML = "";
+      if (!admins.length) { empty.style.display = "block"; return; }
+      empty.style.display = "none";
+      for (const a of admins) {
+        const el = document.createElement("div");
+        el.className = "card row";
+        el.innerHTML = `
+          <div class="avatar" ${a.avatar_url ? `style="background-image:url('${a.avatar_url}'); background-size:cover; background-position:center;"` : ""}>${a.avatar_url ? "" : escapeHtml(a.nickname[0].toUpperCase())}</div>
+          <div class="info">
+            <div class="nickname">${escapeHtml(a.nickname)}</div>
+            <div class="meta">${ROLE_LABELS[a.role] || a.role}</div>
+          </div>
+          <div class="status">
+            <span class="dot ${a.is_online ? "online" : "offline"}"></span>
+            ${a.is_online ? "на связи" : "не в сети"}
+          </div>`;
+        list.appendChild(el);
+      }
+    } catch (err) {
+      if (err.message !== "401 Unauthorized") {
+        document.getElementById("loader").textContent = "Не удалось загрузить данные";
+      }
+    }
+  }
+
+  load();
+  setInterval(load, 30000);
+</script>
+</body>
+</html>
+

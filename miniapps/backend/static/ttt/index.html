@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Крестики-нолики</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+<style>
+  #board {
+    display: grid;
+    gap: 6px;
+    margin: 20px auto;
+    max-width: 420px;
+    width: 100%;
+  }
+  .cell {
+    aspect-ratio: 1 / 1;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800;
+    color: var(--text);
+    user-select: none;
+  }
+  .cell.x, .cell.o { color: transparent; }
+  .cell svg { width: 60%; height: 60%; }
+  .cell.clickable { cursor: pointer; }
+  #status { text-align: center; font-size: 15px; margin-top: 4px; min-height: 22px; }
+</style>
+</head>
+<body>
+  <h1>❌⭕ Крестики-нолики</h1>
+  <div class="subtitle" id="subtitle">Загрузка игры...</div>
+  <div id="board"></div>
+  <div id="status"></div>
+
+<script src="/shared/api.js"></script>
+<script>
+  const ICON_X = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5 5 L19 19 M19 5 L5 19" stroke="var(--accent)" stroke-width="3.4" stroke-linecap="round"/>
+  </svg>`;
+  const ICON_O = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="7.5" stroke="var(--accent-2)" stroke-width="3.4"/>
+  </svg>`;
+
+  const params = new URLSearchParams(location.search);
+  const gameId = params.get("game_id");
+  let pollTimer = null;
+  let lastStatus = null;
+
+  if (!gameId) {
+    document.getElementById("subtitle").textContent = "Не указана игра (нет game_id в ссылке).";
+  } else {
+    loadAndRender();
+    pollTimer = setInterval(loadAndRender, 1500);
+  }
+
+  async function loadAndRender() {
+    try {
+      const res = await apiFetch(`/api/ttt/${gameId}`);
+      const game = await res.json();
+      render(game);
+    } catch (e) {
+      document.getElementById("subtitle").textContent = "Не удалось загрузить игру: " + e.message;
+    }
+  }
+
+  function render(game) {
+    const size = game.board_size;
+    const boardEl = document.getElementById("board");
+    boardEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+
+    const cellFont = size <= 4 ? "38px" : size <= 6 ? "26px" : "18px";
+
+    boardEl.innerHTML = "";
+    game.board.forEach((v, idx) => {
+      const div = document.createElement("div");
+      div.className = "cell" + (v === 1 ? " x" : v === 2 ? " o" : "");
+      div.style.fontSize = cellFont;
+      div.innerHTML = v === 1 ? ICON_X : v === 2 ? ICON_O : "";
+      const canClick = game.status === "active" && v === 0 && game.you_are === game.turn && game.you_are !== null;
+      if (canClick) {
+        div.classList.add("clickable");
+        div.addEventListener("click", () => makeMove(idx));
+      }
+      boardEl.appendChild(div);
+    });
+
+    const youLabel = game.you_are === 1 ? "✕ (крестики)" : game.you_are === 2 ? "○ (нолики)" : "зритель";
+    document.getElementById("subtitle").textContent =
+      `Поле ${size}×${size}, нужно собрать ${game.win_length} в ряд. Ты играешь за: ${youLabel}`;
+
+    const statusEl = document.getElementById("status");
+    if (game.status === "finished") {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (game.winner === 0) statusEl.textContent = "🤝 Ничья!";
+      else {
+        const winnerLabel = game.winner === 1 ? "✕ крестики" : "○ нолики";
+        const won = game.you_are === game.winner;
+        statusEl.textContent = won ? `🎉 Победа! Выиграли ${winnerLabel}.` : `Игра окончена — выиграли ${winnerLabel}.`;
+      }
+    } else {
+      const myTurn = game.you_are === game.turn;
+      statusEl.textContent = myTurn ? "Твой ход!" : "Ход соперника...";
+    }
+  }
+
+  async function makeMove(cell) {
+    try {
+      const res = await apiFetch(`/api/ttt/${gameId}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cell }),
+      });
+      const game = await res.json();
+      render(game);
+    } catch (e) {
+      tg?.showAlert?.(e.message || "Не удалось сделать ход");
+    }
+  }
+</script>
+</body>
+</html>

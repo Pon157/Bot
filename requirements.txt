@@ -1,0 +1,17 @@
+aiogram==3.15.0
+SQLAlchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+Pillow==11.0.0
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+httpx==0.28.1
+redis==5.2.1  # больше не обязателен для запуска бота (FSM/антиспам теперь in-memory);
+              # оставлен в зависимостях как опция на будущее, если понадобится
+              # персистентное хранилище состояний между рестартами/масштабирование
+apscheduler==3.10.4
+python-multipart==0.0.20
+aiohttp-socks==0.9.1  # опционально, только если используется socks5-прокси (BOT_PROXY_URL)
+

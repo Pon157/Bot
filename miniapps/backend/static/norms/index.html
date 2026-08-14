@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Норма сообщений</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+<style>
+  .progress-track { background: var(--card); border-radius: 10px; height: 12px; overflow: hidden; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .3s; }
+  .progress-fill.behind { background: var(--danger); }
+  .pill { font-size: 11px; padding: 3px 9px; border-radius: 20px; }
+  .pill.ok { background: rgba(87,224,143,.18); color: var(--online); }
+  .pill.behind { background: rgba(255,107,107,.18); color: var(--danger); }
+</style>
+</head>
+<body>
+  <h1 id="title">Норма сообщений</h1>
+  <div class="subtitle" id="subtitle">Загрузка...</div>
+  <div class="list" id="list"></div>
+  <div class="empty" id="empty" style="display:none;"></div>
+
+<script src="/shared/api.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const mode = params.get("mode") === "all" ? "all" : "me";
+
+  function daysLeft(periodEndIso) {
+    const ms = new Date(periodEndIso) - new Date();
+    return Math.max(0, Math.ceil(ms / 86400000));
+  }
+
+  function renderCard(n) {
+    const pct = Math.min(100, Math.round((n.messages_sent / Math.max(1, n.messages_required)) * 100));
+    const el = document.createElement("div");
+    el.className = "card";
+    const logHtml = n.points_log.length
+      ? n.points_log.map(p => `<div class="meta" style="display:flex; justify-content:space-between;">
+          <span>${escapeHtml(p.reason)}</span>
+          <span style="color:${p.delta >= 0 ? 'var(--online)' : 'var(--danger)'};">${p.delta >= 0 ? '+' : ''}${p.delta}</span>
+        </div>`).join("")
+      : `<div class="meta">Пока нет начислений</div>`;
+    el.innerHTML = `
+      <div class="info" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="nickname">${escapeHtml(n.nickname)}</div>
+        <span class="pill ${n.is_on_track ? "ok" : "behind"}">${n.is_on_track ? "в графике" : "отстаёт"}</span>
+      </div>
+      <div class="meta" style="margin-top:6px;">${n.messages_sent} / ${n.messages_required} сообщений · осталось ${daysLeft(n.period_end)} дн.</div>
+      <div class="progress-track"><div class="progress-fill ${n.is_on_track ? "" : "behind"}" style="width:${pct}%;"></div></div>
+      <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+        <span class="stat-value" style="font-size:20px;">${n.points}</span>
+        <span class="meta">баллов</span>
+      </div>
+      <div style="margin-top:8px; border-top:1px solid var(--card-border); padding-top:8px;">${logHtml}</div>
+    `;
+    return el;
+  }
+
+  async function load() {
+    const listEl = document.getElementById("list");
+    const emptyEl = document.getElementById("empty");
+    try {
+      if (mode === "me") {
+        document.getElementById("title").textContent = "Моя норма";
+        document.getElementById("subtitle").textContent = "Сколько сообщений отправлено за текущий период";
+        const n = await (await apiFetch("/api/norms/me")).json();
+        listEl.appendChild(renderCard(n));
+      } else {
+        document.getElementById("title").textContent = "Нормы всех админов";
+        document.getElementById("subtitle").textContent = "Отсортировано по отставанию от нормы";
+        const items = await (await apiFetch("/api/norms/all")).json();
+        if (!items.length) {
+          emptyEl.textContent = "Норма пока никому не настроена (/setnorm)";
+          emptyEl.style.display = "block";
+          return;
+        }
+        for (const n of items) listEl.appendChild(renderCard(n));
+      }
+    } catch (e) {
+      emptyEl.textContent = e.message === "401 Unauthorized" ? "" : (e.message || "Не удалось загрузить данные");
+      if (emptyEl.textContent) emptyEl.style.display = "block";
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

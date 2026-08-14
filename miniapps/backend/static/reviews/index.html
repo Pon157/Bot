@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Спокойный рассвет — Отзывы</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+</head>
+<body>
+  <h1>Отзывы</h1>
+  <div class="subtitle">Поделись впечатлением от общения с администратором</div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="leave">Оставить отзыв</div>
+    <div class="tab" data-tab="feed">Лента отзывов</div>
+  </div>
+
+  <div id="tab-leave">
+    <div class="list" id="recent-list"></div>
+    <div class="empty" id="recent-empty" style="display:none;">Нет завершённых диалогов для оценки</div>
+  </div>
+  <div id="tab-feed" style="display:none;">
+    <div class="tabs" id="admin-subtabs" style="margin-top:0; flex-wrap:wrap; gap:6px;"></div>
+    <div class="list" id="feed-list"></div>
+    <div class="empty" id="feed-empty" style="display:none;">Пока нет отзывов</div>
+  </div>
+  <div class="loader" id="loader">Загружаем...</div>
+
+  <!-- модалка оставления отзыва -->
+  <div id="modal" style="display:none; position:fixed; inset:0; background:rgba(10,6,20,.8); backdrop-filter:blur(5px); z-index:10; align-items:flex-end; padding:16px; overflow-y:auto;">
+    <div class="card" style="width:100%; padding:20px; max-height:85vh; overflow-y:auto;">
+      <div class="nickname" id="modal-title" style="margin-bottom:10px;"></div>
+      <div class="stars" id="stars">
+        <span class="star" data-v="1">★</span><span class="star" data-v="2">★</span>
+        <span class="star" data-v="3">★</span><span class="star" data-v="4">★</span>
+        <span class="star" data-v="5">★</span>
+      </div>
+      <textarea id="review-text" rows="3" placeholder="Что понравилось или что можно улучшить? (необязательно)"></textarea>
+
+      <label class="btn secondary" style="display:block; text-align:center; margin-top:10px; cursor:pointer;">
+        <span id="photo-label">📎 Прикрепить фото (необязательно, до 25 МБ)</span>
+        <input type="file" id="review-photo" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none;"/>
+      </label>
+      <img id="photo-preview" style="display:none; max-width:100%; border-radius:12px; margin-top:8px;"/>
+
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button class="btn secondary" id="cancel-btn" style="flex:1;">Отмена</button>
+        <button class="btn" id="submit-btn" style="flex:1;" disabled>Отправить</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/shared/api.js"></script>
+<script>
+  const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
+  let curAppealId = null, curAdminId = null, curRating = 0, curPhotoFile = null;
+
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      const t = tab.dataset.tab;
+      document.getElementById("tab-leave").style.display = t === "leave" ? "block" : "none";
+      document.getElementById("tab-feed").style.display = t === "feed" ? "block" : "none";
+      if (t === "feed") loadFeed();
+    });
+  });
+
+  async function loadRecent() {
+    try {
+      const items = await (await apiFetch("/api/reviews/recent-admins")).json();
+      document.getElementById("loader").style.display = "none";
+      const list = document.getElementById("recent-list");
+      const empty = document.getElementById("recent-empty");
+      list.innerHTML = "";
+      const pending = items.filter(i => !i.already_reviewed);
+      if (!pending.length) { empty.style.display = "block"; return; }
+      empty.style.display = "none";
+      for (const item of pending) {
+        const el = document.createElement("div");
+        el.className = "card row";
+        el.innerHTML = `
+          <div class="avatar">${escapeHtml(item.nickname[0].toUpperCase())}</div>
+          <div class="info">
+            <div class="nickname">Вы недавно говорили с ${escapeHtml(item.nickname)}</div>
+            <div class="meta">Хотите оставить отзыв?</div>
+          </div>
+          <button class="btn" style="flex-shrink:0;">Отзыв</button>`;
+        el.querySelector("button").addEventListener("click", () => openModal(item.appeal_id, item.admin_id, item.nickname));
+        list.appendChild(el);
+      }
+    } catch (e) { if (e.message !== "401 Unauthorized") document.getElementById("loader").textContent = "Ошибка загрузки"; }
+  }
+
+  let feedItems = [];
+  let activeAdminTab = "all"; // "all" | "archive" | admin_id (строка)
+
+  async function loadFeed() {
+    try {
+      feedItems = await (await apiFetch("/api/reviews/feed")).json();
+      renderAdminSubtabs();
+      renderFeed();
+    } catch (e) { /* тихо */ }
+  }
+
+  function renderAdminSubtabs() {
+    // Вкладки: "Все", по одной на каждого активного админа (у кого есть отзывы,
+    // по нику, отсортированы по алфавиту), и "Архив" — для отзывов на админов,
+    // которых уже удалили/деактивировали (чтобы их отзывы не терялись из виду,
+    // но и не мешались среди действующих админов).
+    const activeAdmins = new Map();
+    let hasArchive = false;
+    for (const r of feedItems) {
+      if (r.admin_is_active) activeAdmins.set(r.admin_id, r.admin_nickname);
+      else hasArchive = true;
+    }
+    const sortedAdmins = [...activeAdmins.entries()].sort((a, b) => a[1].localeCompare(b[1], "ru"));
+
+    const container = document.getElementById("admin-subtabs");
+    container.innerHTML = "";
+    const makeTab = (key, label) => {
+      const el = document.createElement("div");
+      el.className = "tab" + (activeAdminTab === key ? " active" : "");
+      el.textContent = label;
+      el.style.cssText = "font-size:12px; padding:6px 12px;";
+      el.addEventListener("click", () => { activeAdminTab = key; renderAdminSubtabs(); renderFeed(); });
+      container.appendChild(el);
+    };
+    makeTab("all", "Все");
+    for (const [adminId, nickname] of sortedAdmins) makeTab(String(adminId), nickname);
+    if (hasArchive) makeTab("archive", "Архив");
+  }
+
+  function renderFeed() {
+    const list = document.getElementById("feed-list");
+    const empty = document.getElementById("feed-empty");
+    list.innerHTML = "";
+
+    const items = feedItems.filter(r => {
+      if (activeAdminTab === "all") return true;
+      if (activeAdminTab === "archive") return !r.admin_is_active;
+      return String(r.admin_id) === activeAdminTab;
+    });
+
+    if (!items.length) { empty.style.display = "block"; return; }
+    empty.style.display = "none";
+    for (const r of items) {
+      const el = document.createElement("div");
+      el.className = "card";
+      const stars = "★".repeat(r.rating) + "☆".repeat(5 - r.rating);
+      el.innerHTML = `
+        <div class="rating-badge" style="margin-bottom:6px;">${stars}</div>
+        <div class="nickname">${escapeHtml(r.admin_nickname)}${r.admin_is_active ? "" : ' <span class="badge" style="font-size:10px;">архив</span>'}</div>
+        ${r.text ? `<div class="meta" style="margin-top:6px;color:var(--text);">${escapeHtml(r.text)}</div>` : ""}
+        ${r.photo_url ? `<img src="${r.photo_url}" loading="lazy" style="max-width:100%; border-radius:12px; margin-top:8px;"/>` : ""}
+        <div class="msg-time" style="margin-top:8px;">${fmtDate(r.created_at)}</div>`;
+      list.appendChild(el);
+    }
+  }
+
+  function openModal(appealId, adminId, nickname) {
+    curAppealId = appealId; curAdminId = adminId; curRating = 0; curPhotoFile = null;
+    document.getElementById("modal-title").textContent = `Отзыв о ${nickname}`;
+    document.getElementById("review-text").value = "";
+    document.getElementById("review-photo").value = "";
+    document.getElementById("photo-label").textContent = "📎 Прикрепить фото (необязательно, до 25 МБ)";
+    document.getElementById("photo-preview").style.display = "none";
+    document.querySelectorAll(".star").forEach(s => s.classList.remove("filled"));
+    document.getElementById("submit-btn").disabled = true;
+    document.getElementById("modal").style.display = "flex";
+  }
+
+  document.getElementById("review-photo").addEventListener("change", (ev) => {
+    const file = ev.target.files[0];
+    if (!file) { curPhotoFile = null; return; }
+    if (file.size > MAX_PHOTO_BYTES) {
+      tg?.showAlert?.("Файл слишком большой — максимум 25 МБ");
+      ev.target.value = "";
+      curPhotoFile = null;
+      return;
+    }
+    curPhotoFile = file;
+    document.getElementById("photo-label").textContent = `📎 ${file.name}`;
+    const preview = document.getElementById("photo-preview");
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = "block";
+  });
+
+  document.getElementById("cancel-btn").addEventListener("click", () => {
+    document.getElementById("modal").style.display = "none";
+  });
+
+  document.querySelectorAll(".star").forEach(star => {
+    star.addEventListener("click", () => {
+      curRating = parseInt(star.dataset.v);
+      document.querySelectorAll(".star").forEach(s => s.classList.toggle("filled", parseInt(s.dataset.v) <= curRating));
+      document.getElementById("submit-btn").disabled = false;
+    });
+  });
+
+  document.getElementById("submit-btn").addEventListener("click", async () => {
+    const text = document.getElementById("review-text").value.trim();
+    const submitBtn = document.getElementById("submit-btn");
+    submitBtn.disabled = true;
+    try {
+      const form = new FormData();
+      form.append("appeal_id", curAppealId);
+      form.append("admin_id", curAdminId);
+      form.append("rating", curRating);
+      if (text) form.append("text", text);
+      if (curPhotoFile) form.append("photo", curPhotoFile);
+      // Content-Type для FormData ставится браузером сам (с boundary) — не задаём вручную
+      await apiFetch("/api/reviews", { method: "POST", body: form });
+      document.getElementById("modal").style.display = "none";
+      tg?.showAlert?.("Спасибо за отзыв!");
+      loadRecent();
+    } catch (e) {
+      tg?.showAlert?.(e.message && e.message !== "401 Unauthorized" ? `Не удалось отправить отзыв: ${e.message}` : "Не удалось отправить отзыв");
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  loadRecent();
+</script>
+</body>
+</html>

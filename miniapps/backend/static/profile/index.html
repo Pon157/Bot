@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Спокойный рассвет — Профиль</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+</head>
+<body>
+  <h1>Твой профиль</h1>
+  <div class="subtitle">Для карточки с аватаром нажми «Профиль» в боте</div>
+
+  <div class="card" id="profile-card" style="display:none; padding:20px;">
+    <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+      <div class="avatar" id="p-avatar" style="width:56px;height:56px;font-size:24px;"></div>
+      <div>
+        <div class="nickname" id="p-nickname" style="font-size:18px;"></div>
+        <div class="meta" id="p-since"></div>
+      </div>
+    </div>
+
+    <div class="meta" style="color:var(--accent);font-weight:600;margin-bottom:4px;">О себе</div>
+    <div id="p-about" style="margin-bottom:14px;line-height:1.5;"></div>
+
+    <div class="meta" style="color:var(--accent);font-weight:600;margin-bottom:4px;">Хобби и интересы</div>
+    <div id="p-hobbies" style="line-height:1.5;"></div>
+  </div>
+
+  <div class="empty" id="empty" style="display:none;">Не удалось загрузить анкету</div>
+  <div class="loader" id="loader">Загружаем...</div>
+
+  <div style="margin-top:16px;">
+    <button class="btn secondary" style="width:100%;" onclick="tg?.close?.()">
+      Изменить анкету — в главном меню бота
+    </button>
+  </div>
+
+<script src="/shared/api.js"></script>
+<script>
+  async function load() {
+    try {
+      const p = await (await apiFetch("/api/profile")).json();
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("profile-card").style.display = "block";
+      const nick = p.nickname || "Без псевдонима";
+      document.getElementById("p-nickname").textContent = nick;
+      document.getElementById("p-avatar").textContent = nick[0].toUpperCase();
+      document.getElementById("p-about").textContent = p.about || "—";
+      document.getElementById("p-hobbies").textContent = p.hobbies || "—";
+      document.getElementById("p-since").textContent = "В боте с " + fmtDate(p.created_at);
+    } catch (e) {
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("empty").style.display = "block";
+    }
+  }
+  load();
+</script>
+</body>
+</html>
+

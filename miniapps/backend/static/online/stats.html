@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Спокойный рассвет — Статистика</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+</head>
+<body>
+  <h1>Статистика</h1>
+  <div class="subtitle">Активность за последние 24 часа</div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-value" id="v-au">—</div><div class="stat-label">Активных пользователей</div></div>
+    <div class="stat-card"><div class="stat-value" id="v-ao">—</div><div class="stat-label">Администраторов онлайн</div></div>
+    <div class="stat-card"><div class="stat-value" id="v-tu">—</div><div class="stat-label">Всего пользователей</div></div>
+    <div class="stat-card"><div class="stat-value" id="v-ta">—</div><div class="stat-label">Всего администраторов</div></div>
+  </div>
+  <div class="loader" id="loader">Загружаем...</div>
+
+<script src="/shared/api.js"></script>
+<script>
+  async function load() {
+    try {
+      const s = await (await apiFetch("/api/stats")).json();
+      document.getElementById("loader").style.display = "none";
+      document.getElementById("v-au").textContent = s.active_users_24h;
+      document.getElementById("v-ao").textContent = s.active_admins_now;
+      document.getElementById("v-tu").textContent = s.total_users;
+      document.getElementById("v-ta").textContent = s.total_admins;
+    } catch (e) {
+      if (e.message !== "401 Unauthorized")
+        document.getElementById("loader").textContent = "Не удалось загрузить данные";
+    }
+  }
+  load();
+  setInterval(load, 30000);
+</script>
+</body>
+</html>
+

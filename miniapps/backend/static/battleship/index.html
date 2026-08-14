@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Морской бой</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+<style>
+  h2 { font-size: 15px; margin: 18px 0 6px; color: var(--hint); }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 3px;
+    max-width: 380px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .cell {
+    aspect-ratio: 1 / 1;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cell svg { width: 60%; height: 60%; }
+  .cell.ship { background: rgba(122, 162, 255, .18); }
+  .cell.hit { background: rgba(255, 107, 107, .22); }
+  .cell.miss { background: rgba(255,255,255,.05); }
+  .cell.clickable { cursor: pointer; }
+  .cell.clickable:active { opacity: .7; }
+  #status { text-align: center; font-size: 15px; margin: 10px 0; min-height: 22px; }
+
+  .fleet-panel {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    margin: 10px 0;
+  }
+  .fleet-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 10px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+  }
+  .fleet-chip.selected { border-color: var(--accent); background: rgba(255,205,130,.12); }
+  .fleet-chip.done { opacity: .4; cursor: default; }
+  .fleet-chip .dots { display:flex; gap:2px; }
+  .fleet-chip .dot { width:7px; height:7px; border-radius:2px; background: var(--accent); }
+
+  .place-controls { display:flex; gap:8px; justify-content:center; margin: 10px 0; }
+</style>
+</head>
+<body>
+  <h1>🚢 Морской бой</h1>
+  <div class="subtitle" id="subtitle">Загрузка игры...</div>
+  <div id="status"></div>
+
+  <div id="placing-ui" style="display:none;">
+    <div class="fleet-panel" id="fleet-panel"></div>
+    <div class="place-controls">
+      <button class="btn secondary" id="rotate-btn">↻ Повернуть</button>
+      <button class="btn secondary" id="reset-btn">Сбросить</button>
+    </div>
+    <div class="board" id="place-board"></div>
+    <div class="place-controls">
+      <button class="btn" id="ready-btn" disabled style="width:100%;">Готов</button>
+    </div>
+  </div>
+
+  <div id="battle-ui" style="display:none;">
+    <h2>Поле противника (стреляй сюда)</h2>
+    <div class="board" id="enemy-board"></div>
+
+    <h2>Твой флот</h2>
+    <div class="board" id="my-board"></div>
+  </div>
+
+<script src="/shared/api.js"></script>
+<script>
+  const ICON_HIT = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5 5 L19 19 M19 5 L5 19" stroke="var(--danger)" stroke-width="3.4" stroke-linecap="round"/>
+  </svg>`;
+  const ICON_MISS = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="3.2" fill="var(--hint)"/>
+  </svg>`;
+  const ICON_SHIP = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="5" y="5" width="14" height="14" rx="3" fill="var(--accent)" opacity="0.55"/>
+  </svg>`;
+
+  const params = new URLSearchParams(location.search);
+  const gameId = params.get("game_id");
+  let pollTimer = null;
+
+  let fleet = [];
+  let placedShips = [];
+  let selectedLength = null;
+  let horizontal = true;
+  const BOARD_CELLS = 100, SIZE = 10;
+
+  if (!gameId) {
+    document.getElementById("subtitle").textContent = "Не указана игра (нет game_id в ссылке).";
+  } else {
+    loadAndRender();
+  }
+
+  async function loadAndRender() {
+    try {
+      const res = await apiFetch(`/api/battleship/${gameId}`);
+      const game = await res.json();
+      render(game);
+    } catch (e) {
+      document.getElementById("subtitle").textContent = "Не удалось загрузить игру: " + e.message;
+    }
+  }
+
+  function renderBoard(container, cells, { showShips, clickable, onClick }) {
+    container.innerHTML = "";
+    cells.forEach((v, idx) => {
+      const div = document.createElement("div");
+      let cls = "cell";
+      let icon = "";
+      if (v === 1 && showShips) { cls += " ship"; icon = ICON_SHIP; }
+      else if (v === 2) { cls += " hit"; icon = ICON_HIT; }
+      else if (v === 3) { cls += " miss"; icon = ICON_MISS; }
+      div.className = cls;
+      div.innerHTML = icon;
+      if (clickable && (v === 0 || showShips)) {
+        div.classList.add("clickable");
+        div.addEventListener("click", () => onClick(idx));
+      }
+      container.appendChild(div);
+    });
+  }
+
+  function render(game) {
+    fleet = game.fleet;
+    const youLabel = game.you_are ? `Игрок ${game.you_are}` : "зритель";
+
+    if (game.status === "placing") {
+      document.getElementById("placing-ui").style.display = "block";
+      document.getElementById("battle-ui").style.display = "none";
+      if (game.you_ready) {
+        document.getElementById("subtitle").textContent = `Флот расставлен. Ждём соперника (${youLabel}).`;
+        document.getElementById("status").textContent = game.opponent_ready ? "Оба готовы — бой вот-вот начнётся!" : "Ожидание соперника...";
+        if (!pollTimer) pollTimer = setInterval(loadAndRender, 1500);
+      } else {
+        document.getElementById("subtitle").textContent = `Расставь свой флот (${youLabel}): 1×4-палубный, 2×3-палубных, 3×2-палубных, 4×1-палубных.`;
+        document.getElementById("status").textContent = "";
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        initPlacingUI();
+      }
+      return;
+    }
+
+    if (pollTimer === null && game.status === "active") pollTimer = setInterval(loadAndRender, 1500);
+    document.getElementById("placing-ui").style.display = "none";
+    document.getElementById("battle-ui").style.display = "block";
+    document.getElementById("subtitle").textContent = `Классический флот 10x10. Ты — ${youLabel}.`;
+
+    const canFire = game.status === "active" && game.you_are === game.turn && game.you_are !== null;
+    renderBoard(document.getElementById("enemy-board"), game.enemy_shots, {
+      showShips: false, clickable: canFire, onClick: fire,
+    });
+    renderBoard(document.getElementById("my-board"), game.my_board, {
+      showShips: true, clickable: false, onClick: null,
+    });
+
+    const statusEl = document.getElementById("status");
+    if (game.status === "finished") {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      const won = game.you_are === game.winner;
+      statusEl.textContent = won ? "🎉 Победа! Флот противника потоплен." : "Игра окончена — противник потопил твой флот.";
+    } else {
+      statusEl.textContent = canFire ? "Твой ход — стреляй по полю противника!" : "Ход соперника...";
+    }
+  }
+
+  function fleetCounts() {
+    const required = {};
+    for (const l of fleet) required[l] = (required[l] || 0) + 1;
+    const placed = {};
+    for (const s of placedShips) placed[s.length] = (placed[s.length] || 0) + 1;
+    return { required, placed };
+  }
+
+  function initPlacingUI() {
+    placedShips = [];
+    selectedLength = [...new Set(fleet)].sort((a, b) => b - a)[0] || null;
+    renderFleetPanel();
+    renderPlaceBoard();
+
+    document.getElementById("rotate-btn").onclick = () => { horizontal = !horizontal; };
+    document.getElementById("reset-btn").onclick = () => { placedShips = []; renderFleetPanel(); renderPlaceBoard(); };
+    document.getElementById("ready-btn").onclick = submitFleet;
+  }
+
+  function renderFleetPanel() {
+    const { required, placed } = fleetCounts();
+    const panel = document.getElementById("fleet-panel");
+    panel.innerHTML = "";
+    for (const lenStr of Object.keys(required).sort((a, b) => b - a)) {
+      const len = Number(lenStr);
+      const need = required[len], have = placed[len] || 0;
+      const chip = document.createElement("div");
+      chip.className = "fleet-chip" + (selectedLength === len ? " selected" : "") + (have >= need ? " done" : "");
+      const dots = Array.from({ length: len }).map(() => `<span class="dot"></span>`).join("");
+      chip.innerHTML = `<span class="dots">${dots}</span><span>${have}/${need}</span>`;
+      if (have < need) chip.addEventListener("click", () => { selectedLength = len; renderFleetPanel(); });
+      panel.appendChild(chip);
+    }
+    const allDone = Object.keys(required).every(l => (placed[l] || 0) >= required[l]);
+    document.getElementById("ready-btn").disabled = !allDone;
+  }
+
+  function shipCellsFor(startIdx, length, isHorizontal) {
+    const r = Math.floor(startIdx / SIZE), c = startIdx % SIZE;
+    const cells = [];
+    for (let i = 0; i < length; i++) {
+      const rr = isHorizontal ? r : r + i;
+      const cc = isHorizontal ? c + i : c;
+      if (rr < 0 || rr >= SIZE || cc < 0 || cc >= SIZE) return null;
+      cells.push(rr * SIZE + cc);
+    }
+    return cells;
+  }
+
+  function cellsTouch(cellsA, occupiedSet) {
+    for (const idx of cellsA) {
+      const r = Math.floor(idx / SIZE), c = idx % SIZE;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
+            if (occupiedSet.has(nr * SIZE + nc)) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function occupiedCells() {
+    const s = new Set();
+    for (const ship of placedShips) for (const c of ship.cells) s.add(c);
+    return s;
+  }
+
+  function renderPlaceBoard() {
+    const board = Array(BOARD_CELLS).fill(0);
+    for (const idx of occupiedCells()) board[idx] = 1;
+
+    renderBoard(document.getElementById("place-board"), board, {
+      showShips: true, clickable: true,
+      onClick: (idx) => {
+        const existing = placedShips.find(s => s.cells.includes(idx));
+        if (existing) {
+          placedShips = placedShips.filter(s => s !== existing);
+          renderFleetPanel(); renderPlaceBoard();
+          return;
+        }
+        if (selectedLength === null) return;
+        const cells = shipCellsFor(idx, selectedLength, horizontal);
+        if (!cells) { tg?.showAlert?.("Корабль не помещается на поле в эту сторону"); return; }
+        if (cellsTouch(cells, occupiedCells())) { tg?.showAlert?.("Корабли не должны соприкасаться друг с другом"); return; }
+        placedShips.push({ cells, length: selectedLength });
+        const nowPlaced = placedShips.filter(s => s.length === selectedLength).length;
+        const need = fleet.filter(x => x === selectedLength).length;
+        if (nowPlaced >= need) {
+          const nextLen = [...new Set(fleet)].sort((a, b) => b - a).find(l => {
+            const need2 = fleet.filter(x => x === l).length;
+            const have2 = placedShips.filter(s => s.length === l).length;
+            return have2 < need2;
+          });
+          selectedLength = nextLen ?? null;
+        }
+        renderFleetPanel(); renderPlaceBoard();
+      },
+    });
+  }
+
+  async function submitFleet() {
+    const board = Array(BOARD_CELLS).fill(0);
+    for (const idx of occupiedCells()) board[idx] = 1;
+    try {
+      const res = await apiFetch(`/api/battleship/${gameId}/place`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board }),
+      });
+      const game = await res.json();
+      render(game);
+    } catch (e) {
+      tg?.showAlert?.(e.message || "Не удалось сохранить расстановку");
+    }
+  }
+
+  async function fire(cell) {
+    try {
+      const res = await apiFetch(`/api/battleship/${gameId}/fire`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cell }),
+      });
+      const game = await res.json();
+      render(game);
+    } catch (e) {
+      tg?.showAlert?.(e.message || "Не удалось сделать выстрел");
+    }
+  }
+</script>
+</body>
+</html>

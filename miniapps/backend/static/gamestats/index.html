@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Статистика игр</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/shared/style.css"/>
+<style>
+  .rank { font-weight: 800; color: var(--accent); width: 26px; text-align: center; flex-shrink: 0; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--card); color: var(--hint); }
+</style>
+</head>
+<body>
+  <h1>🏆 Статистика игр</h1>
+  <div class="subtitle">Виселица, угадай число, крестики-нолики, морской бой — все вместе</div>
+  <div class="list" id="list"></div>
+  <div class="empty" id="empty" style="display:none;">Пока никто не сыграл ни одной игры</div>
+
+<script src="/shared/api.js"></script>
+<script>
+  async function load() {
+    try {
+      const items = await (await apiFetch("/api/gamestats/leaderboard")).json();
+      const list = document.getElementById("list");
+      if (!items.length) { document.getElementById("empty").style.display = "block"; return; }
+      items.forEach((it, i) => {
+        const el = document.createElement("div");
+        el.className = "card row";
+        el.innerHTML = `
+          <div class="rank">${i + 1}</div>
+          <div class="avatar">${escapeHtml((it.name[0] || "?").toUpperCase())}</div>
+          <div class="info">
+            <div class="nickname">${escapeHtml(it.name)} ${it.is_admin ? '<span class="badge">админ</span>' : ''}</div>
+            <div class="meta">${it.wins} побед из ${it.games_played} игр</div>
+          </div>
+        `;
+        list.appendChild(el);
+      });
+    } catch (e) {
+      document.getElementById("empty").textContent = e.message || "Не удалось загрузить статистику";
+      document.getElementById("empty").style.display = "block";
+    }
+  }
+  load();
+</script>
+</body>
+</html>
