@@ -9,14 +9,14 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 CARD_SIZE = (1000, 560)
 
-# Цветовая палитра в стиле Modern Dark Glassmorphism
-BG_DARK_1 = (13, 17, 28)       # Глубокий тёмно-синий
-BG_DARK_2 = (22, 28, 46)       # Индиго-сланец
-ACCENT_PRIMARY = (129, 140, 248) # Неоновый фиолетовый / Индиго
-ACCENT_CYAN = (56, 189, 248)    # Неоновый голубой
+# Огненная/Warm палитра
+BG_DARK_1 = (20, 15, 12)          # Глубокий тёмно-угольный
+BG_DARK_2 = (35, 24, 18)          # Тёмно-каштановый
+ACCENT_ORANGE = (255, 122, 0)     # Насыщенный яркий оранжевый
+ACCENT_YELLOW = (255, 190, 40)    # Сочный золотисто-жёлтый
 TEXT_MAIN = (255, 255, 255)
-TEXT_MUTED = (148, 163, 184)   # Мягкий серый для описания
-TEXT_ACCENT = (199, 210, 254)
+TEXT_MUTED = (215, 200, 190)       # Тёплый светлый текст описания
+TEXT_ACCENT = (255, 225, 170)
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
@@ -31,30 +31,23 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
 
 
 def _fast_gradient_background(size: tuple[int, int]) -> Image.Image:
-    """Быстрый стильный градиент с двухцветным неоновым свечением."""
-    # Мгновенная генерация базового градиента через resize
+    """Быстрый теплый градиент с оранжево-жёлтым свечением."""
     base = Image.new("RGB", (1, 2))
     base.putpixel((0, 0), BG_DARK_1)
     base.putpixel((0, 1), BG_DARK_2)
     bg = base.resize(size, Image.Resampling.BICUBIC).convert("RGBA")
 
-    # Мягкое объемное неоновое свечение в углах
+    # Мягкие софиты
     glows = Image.new("RGBA", size, (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glows)
 
-    # Свечение 1: Фиолетовый софит за аватаром
-    gdraw.ellipse([-80, -80, 420, 420], fill=ACCENT_PRIMARY + (55,))
-    # Свечение 2: Бирюзовый софит в правом верхнем углу
-    gdraw.ellipse([600, -120, 1100, 380], fill=ACCENT_CYAN + (35,))
+    # Оранжевое свечение за аватаром
+    gdraw.ellipse([-80, -80, 420, 420], fill=ACCENT_ORANGE + (60,))
+    # Жёлтое свечение в верхнем правом углу
+    gdraw.ellipse([600, -120, 1100, 380], fill=ACCENT_YELLOW + (40,))
 
     glows = glows.filter(ImageFilter.GaussianBlur(90))
     return Image.alpha_composite(bg, glows)
-
-
-def _rounded_mask(size: tuple[int, int], radius: int) -> Image.Image:
-    mask = Image.new("L", size, 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, size[0], size[1]], radius=radius, fill=255)
-    return mask
 
 
 async def render_profile_card(
@@ -65,13 +58,13 @@ async def render_profile_card(
     avatar_bytes: bytes | None,
     stats_lines: list[str],
 ) -> bytes:
-    """Возвращает PNG-байты современной премиальной карточки профиля."""
-    # 1. Фон
+    """Возвращает PNG-байты карточки профиля в оранжево-жёлтых тонах без скругления углов."""
+    # 1. Фон (прямоугольный)
     card = _fast_gradient_background(CARD_SIZE)
     overlay = Image.new("RGBA", CARD_SIZE, (0, 0, 0, 0))
     odraw = ImageDraw.Draw(overlay)
 
-    # 2. Отрисовка аватара
+    # 2. Аватар
     avatar_size = 160
     avatar_pos = (50, 45)
 
@@ -79,8 +72,7 @@ async def render_profile_card(
         avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
         avatar = avatar.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
     else:
-        # Резервный аватар с градиентом
-        avatar = Image.new("RGBA", (avatar_size, avatar_size), ACCENT_PRIMARY + (255,))
+        avatar = Image.new("RGBA", (avatar_size, avatar_size), ACCENT_ORANGE + (255,))
         adraw = ImageDraw.Draw(avatar)
         initial = (nickname or "?")[0].upper()
         f = _font(80, bold=True)
@@ -90,19 +82,19 @@ async def render_profile_card(
             ((avatar_size - tw) / 2 - bbox[0], (avatar_size - th) / 2 - bbox[1]),
             initial,
             font=f,
-            fill=(15, 17, 28, 255),
+            fill=(20, 15, 12, 255),
         )
 
-    # Скругление аватара
+    # Скругление самого аватара в круг
     circle_mask = Image.new("L", (avatar_size, avatar_size), 0)
     ImageDraw.Draw(circle_mask).ellipse([0, 0, avatar_size, avatar_size], fill=255)
 
-    # Неоновый ободок вокруг аватара
+    # Оранжевое кольцо вокруг аватара
     ring_size = avatar_size + 12
     ring = Image.new("RGBA", (ring_size, ring_size), (0, 0, 0, 0))
     ImageDraw.Draw(ring).ellipse(
         [0, 0, ring_size, ring_size],
-        outline=ACCENT_PRIMARY + (220,),
+        outline=ACCENT_ORANGE + (230,),
         width=3,
     )
     card.paste(ring, (avatar_pos[0] - 6, avatar_pos[1] - 6), ring)
@@ -112,7 +104,7 @@ async def render_profile_card(
     name_font = _font(40, bold=True)
     odraw.text((240, 48), nickname, font=name_font, fill=TEXT_MAIN)
 
-    # 4. Статистика (в виде стильных бейджей/капсул)
+    # 4. Статистика (бейдж-капсулы)
     stat_font = _font(17, bold=True)
     sx, sy = 240, 115
     for stat in stats_lines:
@@ -124,66 +116,70 @@ async def render_profile_card(
             sx = 240
             sy += 42
 
-        # Капсула статистики
         odraw.rounded_rectangle(
             [sx, sy, sx + badge_w, sy + badge_h],
             radius=17,
             fill=(255, 255, 255, 12),
-            outline=ACCENT_PRIMARY + (80,),
+            outline=ACCENT_YELLOW + (90,),
             width=1,
         )
         odraw.text((sx + 12, sy + 7), stat, font=stat_font, fill=TEXT_ACCENT)
         sx += badge_w + 10
 
-    # 5. Матовые стеклянные карточки для «О себе» и «Хобби»
+    # 5. Матовые блоки «О себе» и «Хобби»
     card_y = 220
     card_h = 290
     card_w = 435
 
-    # Функция отрисовки секции-контейнера
-    def _draw_glass_card(x: int, title: str, text: str, accent_color: tuple[int, int, int]):
-        # Стекло-фон
+    def _draw_glass_card(
+        x: int,
+        title: str,
+        text: str,
+        accent_color: tuple[int, int, int],
+        max_chars: int = 110,  # Жёсткий лимит символов
+    ):
+        # Отрисовка контейнера
         odraw.rounded_rectangle(
             [x, card_y, x + card_w, card_y + card_h],
-            radius=20,
+            radius=18,
             fill=(255, 255, 255, 10),
             outline=(255, 255, 255, 25),
             width=1,
         )
-        # Цветовой индикатор перед заголовком
+        # Вертикальная цветная плашка слева от заголовка
         odraw.rounded_rectangle(
             [x + 20, card_y + 22, x + 25, card_y + 42],
             radius=3,
             fill=accent_color,
         )
-        # Заголовок секции
         label_font = _font(20, bold=True)
         odraw.text((x + 36, card_y + 20), title, font=label_font, fill=TEXT_MAIN)
 
-        # Текст с переносом
+        # Подготовка текста и обрезом по max_chars
+        clean_text = (text or "Не указано").strip()
+        if len(clean_text) > max_chars:
+            clean_text = clean_text[: max_chars - 3].rstrip() + "..."
+
         body_font = _font(18)
         content_y = card_y + 62
         lines = []
-        for raw_line in (text or "Не указано").split("\n"):
+        for raw_line in clean_text.split("\n"):
             lines.extend(textwrap.wrap(raw_line, width=34))
 
-        for line in lines[:7]:  # Максимум 7 строк, чтобы не вылезало
+        # Вывод максимум 6 строк
+        for line in lines[:6]:
             odraw.text((x + 20, content_y), line, font=body_font, fill=TEXT_MUTED)
             content_y += 28
 
-    # Левая карточка: "О себе"
-    _draw_glass_card(50, "О себе", about, ACCENT_PRIMARY)
+    # Левая карточка: "О себе" (Оранжевый акцент)
+    _draw_glass_card(50, "О себе", about, ACCENT_ORANGE)
 
-    # Правая карточка: "Хобби и интересы"
-    _draw_glass_card(515, "Хобби и интересы", hobbies, ACCENT_CYAN)
+    # Правая карточка: "Хобби и интересы" (Жёлтый акцент)
+    _draw_glass_card(515, "Хобби и интересы", hobbies, ACCENT_YELLOW)
 
-    # 6. Финальное объединение и скругление всей основной карточки
+    # 6. Финальное объединение БЕЗ скругления углов карточки
     final_card = Image.alpha_composite(card, overlay)
-    mask = _rounded_mask(CARD_SIZE, radius=28)
-
-    output = Image.new("RGBA", CARD_SIZE, (0, 0, 0, 0))
-    output.paste(final_card, (0, 0), mask)
 
     buf = io.BytesIO()
-    output.convert("RGB").save(buf, format="PNG", quality=95)
+    final_card.convert("RGB").save(buf, format="PNG", quality=95)
     return buf.getvalue()
