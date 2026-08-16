@@ -9,6 +9,7 @@ def resources_keyboard() -> InlineKeyboardMarkup:
     rows = [
         [inline_btn("Наш канал", url=settings.channel_url, emo=e.GLOBE, style="primary")],
         [inline_btn("Бот с анкетами", url=settings.anketa_bot_url, emo=e.CHAT, style="primary")],
+        [inline_btn("Техническая поддержка", url=settings.tech_bot_url, emo=e.CHAT, style="primary")],
         [
             inline_btn(
                 "Отзывы",
