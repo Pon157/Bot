@@ -27,7 +27,6 @@
   </div>
   <div class="loader" id="loader">Загружаем...</div>
 
-  <!-- модалка оставления отзыва -->
   <div id="modal" style="display:none; position:fixed; inset:0; background:rgba(10,6,20,.8); backdrop-filter:blur(5px); z-index:10; align-items:flex-end; padding:16px; overflow-y:auto;">
     <div class="card" style="width:100%; padding:20px; max-height:85vh; overflow-y:auto;">
       <div class="nickname" id="modal-title" style="margin-bottom:10px;"></div>
@@ -94,7 +93,7 @@
   }
 
   let feedItems = [];
-  let activeAdminTab = "all"; // "all" | "archive" | admin_id (строка)
+  let activeAdminTab = "all";
 
   async function loadFeed() {
     try {
@@ -105,10 +104,6 @@
   }
 
   function renderAdminSubtabs() {
-    // Вкладки: "Все", по одной на каждого активного админа (у кого есть отзывы,
-    // по нику, отсортированы по алфавиту), и "Архив" — для отзывов на админов,
-    // которых уже удалили/деактивировали (чтобы их отзывы не терялись из виду,
-    // но и не мешались среди действующих админов).
     const activeAdmins = new Map();
     let hasArchive = false;
     for (const r of feedItems) {
@@ -210,7 +205,6 @@
       form.append("rating", curRating);
       if (text) form.append("text", text);
       if (curPhotoFile) form.append("photo", curPhotoFile);
-      // Content-Type для FormData ставится браузером сам (с boundary) — не задаём вручную
       await apiFetch("/api/reviews", { method: "POST", body: form });
       document.getElementById("modal").style.display = "none";
       tg?.showAlert?.("Спасибо за отзыв!");
