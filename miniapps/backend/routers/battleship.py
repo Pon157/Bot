@@ -19,16 +19,16 @@ class MoveIn(BaseModel):
 
 
 class PlaceIn(BaseModel):
-    board: list[int]  # 100 значений 0/1
+    board: list[int]
 
 
 class GameOut(BaseModel):
     id: int
     board_size: int
-    fleet: list[int]           # состав флота — чтобы фронтенд не хардкодил его отдельно
-    status: str                # placing | active | finished
-    my_board: list[int]        # твой флот + результаты выстрелов противника по нему
-    enemy_shots: list[int]     # только то, что видно на поле противника: 0=неизвестно,2=подбито,3=промах
+    fleet: list[int]
+    status: str
+    my_board: list[int]
+    enemy_shots: list[int]
     turn: int
     winner: int | None
     you_are: int | None
@@ -50,7 +50,6 @@ def _make_out(game: SeaBattleGame, you_are: int | None) -> GameOut:
         you_ready, opponent_ready = False, False
 
     if game.status == "placing":
-        # пока идёт расстановка, чужое поле вообще не показываем (нечего скрывать построчно)
         enemy_shots = [0] * (BOARD_SIZE * BOARD_SIZE)
     else:
         enemy_shots = [v if v in (2, 3) else 0 for v in enemy_board]
@@ -169,7 +168,7 @@ async def fire(
         )
     elif not hit:
         game.turn = 2 if game.turn == 1 else 1
-    # при попадании (hit) ход остаётся у стрелявшего — классическое правило "попал — стреляй ещё"
+
 
     await session.commit()
     return _make_out(game, you_are)
