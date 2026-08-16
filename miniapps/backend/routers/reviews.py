@@ -31,7 +31,7 @@ class ReviewIn(BaseModel):
 class ReviewOut(BaseModel):
     admin_id: int
     admin_nickname: str
-    admin_is_active: bool  # False — админ удалён/деактивирован, попадает во вкладку "Архив"
+    admin_is_active: bool
     rating: int
     text: str | None
     photo_url: str | None
@@ -42,7 +42,6 @@ class ReviewOut(BaseModel):
 async def recent_admins(
     session: AsyncSession = Depends(get_session), tg_user: dict = Depends(get_current_telegram_user)
 ):
-    """Обращения пользователя за последние 30 дней — для подсказки 'вы недавно говорили с ... оставить отзыв?'."""
     result = await session.execute(
         select(Appeal)
         .where(
@@ -100,7 +99,6 @@ async def create_review(
         )
     )
 
-    # ── баллы за отзыв: +1 за 5 звёзд, -2 за плохой (1-2 звезды) ──
     admin_res = await session.execute(select(Admin).where(Admin.telegram_id == admin_id))
     admin = admin_res.scalar_one_or_none()
     if admin is not None:
