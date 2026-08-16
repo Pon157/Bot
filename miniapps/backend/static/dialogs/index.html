@@ -37,8 +37,6 @@
 <script>
   const STATUS_LABELS = { pending:"Ожидает", active:"В процессе", closed:"Закрыт", cancelled:"Отменён" };
 
-  // Если открыто через /seedialogs (владелец/хед-админ смотрит чужие
-  // диалоги) — ссылка будет вида /dialogs/?view_as_user_id=123456.
   const params = new URLSearchParams(location.search);
   const viewAsUserId = params.get("view_as_user_id");
   const qs = viewAsUserId ? `?view_as_user_id=${encodeURIComponent(viewAsUserId)}` : "";
@@ -106,11 +104,12 @@
           if (m.text_preview) {
             const cap = document.createElement("div");
             cap.textContent = m.text_preview;
-            cap.style.marginBottom = "6px";
+            cap.style.marginBottom = "4px";
             bubble.appendChild(cap);
           }
-          if (m.media_url) renderMedia(bubble, m);
-          else bubble.appendChild(Object.assign(document.createElement("span"), { textContent: mediaLabel(m.content_type) }));
+          const mediaBadge = document.createElement("span");
+          mediaBadge.textContent = mediaLabel(m.content_type);
+          bubble.appendChild(mediaBadge);
         }
 
         const time = document.createElement("div");
@@ -121,7 +120,6 @@
         row.appendChild(time);
         msgs.appendChild(row);
       }
-      // прокрутить вниз
       msgs.lastElementChild?.scrollIntoView({ block: "end" });
     } catch (e) {
       document.getElementById("chat-loader").textContent = "Не удалось загрузить сообщения";
@@ -129,44 +127,8 @@
   }
 
   function mediaLabel(type) {
-    return { photo:"📷 Фото", video:"🎥 Видео", voice:"🎤 Голосовое", audio:"🎵 Аудио",
-      document:"📎 Документ", sticker:"🩶 Стикер", video_note:"⏺ Видеосообщение", animation:"🎞 GIF" }[type] ?? type;
-  }
-
-  function renderMedia(container, m) {
-    const url = m.media_url;
-    if (m.content_type === "photo") {
-      const img = document.createElement("img");
-      img.src = url; img.className = "msg-media";
-      img.loading = "lazy";
-      container.appendChild(img);
-    } else if (m.content_type === "sticker") {
-      // Статические (webp) и видео-стикеры (webm) отображаются как картинка.
-      // Анимированные (.tgs, это Lottie) браузер отрисовать не может —
-      // в этом случае откатываемся на текстовую подпись вместо битой иконки.
-      const img = document.createElement("img");
-      img.src = url; img.className = "msg-media"; img.loading = "lazy";
-      img.style.maxWidth = "140px";
-      img.onerror = () => {
-        img.remove();
-        container.appendChild(Object.assign(document.createElement("span"), { textContent: mediaLabel("sticker") }));
-      };
-      container.appendChild(img);
-    } else if (["video","video_note","animation"].includes(m.content_type)) {
-      const v = document.createElement("video");
-      v.src = url; v.controls = true; v.className = "msg-media";
-      container.appendChild(v);
-    } else if (["voice","audio"].includes(m.content_type)) {
-      const a = document.createElement("audio");
-      a.src = url; a.controls = true;
-      a.style.cssText = "width:100%;margin-top:6px;";
-      container.appendChild(a);
-    } else {
-      const a = document.createElement("a");
-      a.href = url; a.textContent = "📎 Открыть файл";
-      a.target = "_blank"; a.style.color = "var(--accent)";
-      container.appendChild(a);
-    }
+    return { photo:"Фото", video:"Видео", voice:"Голосовое", audio:"Аудио",
+      document:"Документ", sticker:"Стикер", video_note:"Видеосообщение", animation:"GIF" }[type] ?? type;
   }
 
   document.getElementById("back-btn").addEventListener("click", () => {
@@ -178,4 +140,3 @@
 </script>
 </body>
 </html>
-
