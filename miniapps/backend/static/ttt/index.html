@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-  <h1>❌⭕ Крестики-нолики</h1>
+  <h1>Крестики-нолики</h1>
   <div class="subtitle" id="subtitle">Загрузка игры...</div>
   <div id="board"></div>
   <div id="status"></div>
@@ -95,11 +95,11 @@
     const statusEl = document.getElementById("status");
     if (game.status === "finished") {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-      if (game.winner === 0) statusEl.textContent = "🤝 Ничья!";
+      if (game.winner === 0) statusEl.textContent = "Ничья!";
       else {
         const winnerLabel = game.winner === 1 ? "✕ крестики" : "○ нолики";
         const won = game.you_are === game.winner;
-        statusEl.textContent = won ? `🎉 Победа! Выиграли ${winnerLabel}.` : `Игра окончена — выиграли ${winnerLabel}.`;
+        statusEl.textContent = won ? `Победа! Выиграли ${winnerLabel}.` : `Игра окончена — выиграли ${winnerLabel}.`;
       }
     } else {
       const myTurn = game.you_are === game.turn;
