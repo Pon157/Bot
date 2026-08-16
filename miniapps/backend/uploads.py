@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
-# Каталог со статикой смонтирован в app.py как /uploads -> UPLOADS_DIR
 UPLOADS_DIR = Path("miniapps/backend/static/uploads")
 REVIEWS_SUBDIR = "reviews"
 AVATARS_SUBDIR = "avatars"
@@ -21,13 +20,6 @@ _EXT_BY_CONTENT_TYPE = {
 
 
 async def save_upload_image(file: UploadFile, subdir: str) -> str:
-    """
-    Валидирует и сохраняет загруженное изображение на диск.
-    Возвращает путь для сохранения в БД в виде "uploads/<subdir>/<file>.ext"
-    (используется как /uploads/<subdir>/<file>.ext в статике FastAPI).
-
-    Кидает HTTPException(400/413), если файл не картинка или больше 25 МБ.
-    """
     content_type = (file.content_type or "").lower()
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="Разрешены только изображения (jpeg, png, webp, gif)")
