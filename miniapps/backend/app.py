@@ -10,18 +10,14 @@ from miniapps.backend.routers import battleship, dialogs, gamestats, norms, onli
 
 app = FastAPI(title="Спокойный рассвет — мини-приложения")
 
-# Порядок важен: CORS должен быть внешним слоем, чтобы CORS-заголовки
-# проставлялись и на 429-ответы от RateLimitMiddleware тоже — иначе браузер
-# просто не даст фронтенду прочитать текст ошибки "слишком много запросов".
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Telegram WebApp открывается с разных поддоменов t.me, web.telegram.org и т.д.
+    allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 app.add_middleware(RateLimitMiddleware)
 
-# API-роутеры
 app.include_router(reviews.router, prefix="/api/reviews",  tags=["reviews"])
 app.include_router(online.router,  prefix="/api/online",   tags=["online"])
 app.include_router(dialogs.router, prefix="/api/dialogs",  tags=["dialogs"])
@@ -36,7 +32,6 @@ import os
 os.makedirs("miniapps/backend/static/uploads/reviews", exist_ok=True)
 os.makedirs("miniapps/backend/static/uploads/avatars", exist_ok=True)
 
-# Статика: сначала shared (без html=True, иначе /shared/ отдаст 404 при index.html запросе)
 app.mount("/shared",  StaticFiles(directory="miniapps/backend/static/shared"),           name="shared")
 app.mount("/uploads", StaticFiles(directory="miniapps/backend/static/uploads"),          name="uploads")
 app.mount("/online",  StaticFiles(directory="miniapps/backend/static/online",  html=True), name="online")
