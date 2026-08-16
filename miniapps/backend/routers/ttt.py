@@ -28,11 +28,10 @@ class GameOut(BaseModel):
     player_o_id: int
     winner: int | None
     status: str
-    you_are: int | None  # 1=X, 2=O, None если смотрящий не участник
+    you_are: int | None
 
 
 def _check_winner(board: list[int], size: int, win_length: int) -> int | None:
-    """Возвращает 1/2 если есть победитель, 0 если ничья (поле заполнено), иначе None."""
     def cell(r: int, c: int) -> int:
         return board[r * size + c]
 
@@ -52,7 +51,7 @@ def _check_winner(board: list[int], size: int, win_length: int) -> int | None:
                     rr += dr
                     cc += dc
     if all(v != 0 for v in board):
-        return 0  # ничья
+        return 0
     return None
 
 
