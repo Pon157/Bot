@@ -29,7 +29,7 @@ class NormOut(BaseModel):
     period_days: int
     period_start: str
     period_end: str
-    is_on_track: bool  # прогресс не отстаёт от доли прошедшего времени периода
+    is_on_track: bool
     points: int
     points_log: list[PointsLogEntry]
 
