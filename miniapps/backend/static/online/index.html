@@ -20,7 +20,6 @@
 
   async function load() {
     try {
-      // онлайн-список публичный (не требует auth), но initData всё равно шлём для единообразия
       const res = await apiFetch("/api/online");
       const admins = await res.json();
       document.getElementById("loader").style.display = "none";
