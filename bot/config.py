@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     channel_url: str = ""
     anketa_bot_url: str = ""
+    tech_bot_url: str = ""
     reviews_webapp_url: str = ""
     online_webapp_url: str = ""
     profile_webapp_url: str = ""
