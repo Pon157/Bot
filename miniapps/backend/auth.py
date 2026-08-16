@@ -11,10 +11,6 @@ from bot.config import settings
 
 
 def verify_init_data(init_data: str) -> dict:
-    """
-    Проверяет подпись Telegram WebApp initData.
-    Возвращает распарсенные поля включая объект user.
-    """
     parsed = dict(parse_qsl(init_data, strict_parsing=True))
     received_hash = parsed.pop("hash", None)
     if not received_hash:
@@ -33,11 +29,6 @@ def verify_init_data(init_data: str) -> dict:
 async def get_current_telegram_user(
     x_telegram_init_data: str = Header(default=""),
 ) -> dict:
-    """
-    Зависимость FastAPI: извлекает и верифицирует пользователя из initData.
-    initData приходит в заголовке X-Telegram-Init-Data, который JS-сторона
-    ставит в каждый запрос: headers: { 'X-Telegram-Init-Data': tg.initData }
-    """
     if not x_telegram_init_data:
         raise HTTPException(status_code=401, detail="Заголовок X-Telegram-Init-Data отсутствует")
 
