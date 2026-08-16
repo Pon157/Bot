@@ -31,13 +31,6 @@ _FALLBACK_MIME_BY_CONTENT_TYPE = {
 async def _resolve_target_user_id(
     session: AsyncSession, requester_id: int, view_as_user_id: int | None
 ) -> int:
-    """
-    Обычно пользователь смотрит только свои диалоги (view_as_user_id=None).
-    Если передан view_as_user_id — это запрос от /seedialogs: разрешаем только
-    владельцу и хед-админам, иначе 403 (даже если это просто левый параметр
-    в URL, подставленный руками — раз уж мы всё равно это дублируем на бэкенде,
-    а не только скрываем в интерфейсе).
-    """
     if view_as_user_id is None:
         return requester_id
 
@@ -67,7 +60,7 @@ class MessageOut(BaseModel):
     is_deleted: bool
     is_edited: bool
     created_at: str
-    media_url: str | None  # заполняется через /api/dialogs/media/{message_pk}
+    media_url: str | None
 
 
 @router.get("", response_model=list[AppealSummary])
@@ -125,8 +118,6 @@ async def dialog_messages(
             is_deleted=m.is_deleted,
             is_edited=m.is_edited,
             created_at=m.created_at.isoformat(),
-            # media_url отдаётся отдельным подписанным эндпоинтом /media/{id}, чтобы не
-            # тянуть тяжёлые файлы Telegram напрямую в список сообщений
             media_url=f"/api/dialogs/media/{m.id}" if m.content_type != "text" else None,
         )
         for m in messages
@@ -135,16 +126,6 @@ async def dialog_messages(
 
 @router.get("/media/{message_pk}")
 async def get_media(message_pk: int, session: AsyncSession = Depends(get_session)):
-    """
-    Проксирует реальный файл из Telegram по сохранённому file_id, чтобы в мини-аппе
-    медиа отображалось нативно (img/video/audio), а не как ссылка-заглушка.
-
-    Раньше всегда отдавался Content-Type: application/octet-stream — из-за этого
-    <video>/<audio> вообще отказывались проигрывать файл (нужен корректный
-    MIME), а <img> полагался на угадывание браузером по содержимому, что не
-    всегда срабатывает. Теперь MIME определяется по расширению настоящего
-    файла Telegram (file_path из getFile), это надёжнее.
-    """
     result = await session.execute(select(AppealMessage).where(AppealMessage.id == message_pk))
     msg = result.scalar_one_or_none()
     if msg is None or not msg.file_id:
