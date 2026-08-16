@@ -7,20 +7,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-# ─────────────────────────────────────────────────────────────────────────
-# Простая защита от DDoS/абьюза для miniapp-backend. Без внешних зависимостей
-# (slowapi и т.п.) — состояние в памяти процесса, этого достаточно для одного
-# инстанса (как и антиспам бота). Лимиты намеренно щедрые: обычный пользователь
-# мини-аппы (открытие страницы + поллинг игр раз в 1.5с + пара кликов) никогда
-# их не заденет — это именно защита от скриптового/массового долбления API,
-# а не от живых людей.
-# ─────────────────────────────────────────────────────────────────────────
 
 WINDOW_SECONDS = 60.0
-MAX_REQUESTS_PER_WINDOW = 240     # ~4 запроса в секунду в среднем на IP
+MAX_REQUESTS_PER_WINDOW = 240
 BURST_WINDOW_SECONDS = 5.0
-MAX_BURST_REQUESTS = 40           # защита от резких вспышек (скриптов)
-BAN_SECONDS = 30.0                # временный бан при превышении лимита
+MAX_BURST_REQUESTS = 40
+BAN_SECONDS = 30.0
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -31,16 +23,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _client_key(request: Request) -> str:
-        # За реверс-прокси (nginx) реальный IP обычно в X-Forwarded-For —
-        # используем его первое значение, если есть, иначе IP соединения.
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next):
-        # Статику (картинки/css/js) не лимитируем — там нет смысла: DDoS-риск
-        # только у API-эндпоинтов, которые ходят в БД/Telegram.
         if not request.url.path.startswith("/api/"):
             return await call_next(request)
 
